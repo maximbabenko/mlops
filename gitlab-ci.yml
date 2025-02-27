@@ -1,0 +1,55 @@
+image: docker:20-dind
+
+services:
+  - docker:dind
+
+stages:
+  - build
+  - format
+  - lint
+  - deploy
+  - docs
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+build:
+  stage: build
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -t registry.github.com/maximbabenko/mlops .
+    - docker push registry.github.com/maximbabenko/mlops
+
+format:
+  stage: format
+  image: registry.github.com/maximbabenko/mlops
+  script:
+    - black .
+
+lint:
+  stage: lint
+  image: registry.github.com/maximbabenko/mlops
+  script:
+    - flake8 .
+
+deploy:
+  stage: deploy
+  image: docker:20-dind
+  services:
+    - docker:dind
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker pull registry.github.com/maximbabenko/mlops
+    - docker run -d -p 80:80 registry.github.com/maximbabenko/mlops
+
+docs:
+  stage: docs
+  image: registry.github.com/maximbabenko/mlops
+  script:
+    - quarto render EDA.ipynb --to html
+    - mkdir -p public
+    - mv EDA.html public/
+  artifacts:
+    paths:
+      - public
